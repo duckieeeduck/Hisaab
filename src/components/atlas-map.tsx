@@ -400,6 +400,23 @@ export function AtlasMap({
     if (ready && !asset && !work && !locationSelected) stateWithoutRecord.current = state;
   }, [ready, asset, work, locationSelected, state]);
   useEffect(() => {
+    const m = map.current;
+    if (!ready || !m || !locationSelected || stateWithoutRecord.current === undefined) return;
+    const saved = cameraBeforeRecord.current;
+    cameraBeforeRecord.current = {
+      camera: saved?.camera ?? {
+        center: m.getCenter(),
+        zoom: m.getZoom(),
+        bearing: m.getBearing(),
+        pitch: m.getPitch(),
+        padding: m.getPadding(),
+      },
+      // Only the state left behind and the current one count as coming back. Any other state is
+      // a new choice, even one a previous record passed through.
+      states: [saved?.states[0] ?? stateWithoutRecord.current, state],
+    };
+  }, [ready, locationSelected, state]);
+  useEffect(() => {
     if (!ready || !state || !map.current || asset || work || locationSelected || controlled.current)
       return;
     if (cameraBeforeRecord.current?.states.includes(state)) return;
@@ -452,20 +469,6 @@ export function AtlasMap({
     if (!ready || !map.current || controlled.current) return;
     const location = work?.location ?? asset?.location;
     if (!location) return;
-    if (stateWithoutRecord.current !== undefined) {
-      const m = map.current,
-        saved = cameraBeforeRecord.current;
-      cameraBeforeRecord.current = {
-        camera: saved?.camera ?? {
-          center: m.getCenter(),
-          zoom: m.getZoom(),
-          bearing: m.getBearing(),
-          pitch: m.getPitch(),
-          padding: m.getPadding(),
-        },
-        states: [...(saved?.states ?? [stateWithoutRecord.current]), state],
-      };
-    }
     map.current.flyTo({
       center: location,
       zoom: 16.5,
