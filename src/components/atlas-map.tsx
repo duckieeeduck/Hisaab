@@ -103,6 +103,13 @@ export function AtlasMap({
   const notify = useRef(onMapReady);
   notify.current = onMapReady;
   const lighting = useRef<'day' | 'dusk' | 'night'>(theme === 'dark' ? 'dusk' : 'day');
+  // Where to return when a record closes. A record opened directly from a link has no earlier
+  // view, so it leaves this empty and closing it still focuses the state.
+  const cameraBeforeRecord = useRef<{
+    camera: mapboxgl.CameraOptions;
+    states: (string | null | undefined)[];
+  } | null>(null);
+  const stateWithoutRecord = useRef<string | null | undefined>(undefined);
   useLocationPreview(
     map.current,
     ready,
@@ -323,7 +330,8 @@ export function AtlasMap({
     if (action.type === 'in') m.zoomIn();
     else if (action.type === 'out') m.zoomOut();
     else if (action.type === 'north') m.resetNorth({ duration });
-    else if (action.type === 'india')
+    else if (action.type === 'india') {
+      cameraBeforeRecord.current = null;
       m.fitBounds(
         [
           [67.8, 6.5],
@@ -331,7 +339,7 @@ export function AtlasMap({
         ],
         { padding: { top: 90, bottom: 60, left: 80, right: 80 }, pitch: 0, bearing: 0, duration },
       );
-    else if (action.type === 'perspective')
+    } else if (action.type === 'perspective')
       m.easeTo({ pitch: m.getPitch() > 25 ? 0 : 55, duration });
     else if (action.type === 'terrain')
       m.setTerrain(m.getTerrain() ? null : { source: 'hisaab-dem', exaggeration: 1 });
@@ -389,8 +397,12 @@ export function AtlasMap({
       );
   }, [contentFrame, contentMode, ready, asset, work, state]);
   useEffect(() => {
+    if (ready && !asset && !work && !locationSelected) stateWithoutRecord.current = state;
+  }, [ready, asset, work, locationSelected, state]);
+  useEffect(() => {
     if (!ready || !state || !map.current || asset || work || locationSelected || controlled.current)
       return;
+    if (cameraBeforeRecord.current?.states.includes(state)) return;
     const c = new AbortController();
     void loadMapBoundary('states')
       .then((geo) => {
@@ -440,6 +452,20 @@ export function AtlasMap({
     if (!ready || !map.current || controlled.current) return;
     const location = work?.location ?? asset?.location;
     if (!location) return;
+    if (stateWithoutRecord.current !== undefined) {
+      const m = map.current,
+        saved = cameraBeforeRecord.current;
+      cameraBeforeRecord.current = {
+        camera: saved?.camera ?? {
+          center: m.getCenter(),
+          zoom: m.getZoom(),
+          bearing: m.getBearing(),
+          pitch: m.getPitch(),
+          padding: m.getPadding(),
+        },
+        states: [...(saved?.states ?? [stateWithoutRecord.current]), state],
+      };
+    }
     map.current.flyTo({
       center: location,
       zoom: 16.5,
@@ -457,6 +483,16 @@ export function AtlasMap({
           : 850,
     });
   }, [asset, work, ready, contentFrame]);
+  useEffect(() => {
+    const saved = cameraBeforeRecord.current;
+    if (!ready || !map.current || !saved || asset || work || locationSelected) return;
+    cameraBeforeRecord.current = null;
+    if (controlled.current || !saved.states.includes(state)) return;
+    map.current.easeTo({
+      ...saved.camera,
+      duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 850,
+    });
+  }, [ready, asset, work, locationSelected, state]);
   useEffect(() => {
     const m = map.current;
     if (!m || !ready) return;
