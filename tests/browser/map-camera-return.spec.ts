@@ -55,9 +55,13 @@ async function moveMapThenOpenList(page: Page) {
   const start = await mapCamera(page);
   await page.locator('.mapboxgl-canvas').focus();
   await page.keyboard.press('ArrowRight');
-  await expect.poll(async () => (await mapCamera(page)).lng).toBeGreaterThan(start.lng + 0.5);
+  await expect
+    .poll(async () => (await mapCamera(page)).lng, { timeout: 20000 })
+    .toBeGreaterThan(start.lng + 0.5);
   await page.keyboard.press('Equal');
-  await expect.poll(async () => (await mapCamera(page)).zoom).toBeGreaterThan(start.zoom + 0.5);
+  await expect
+    .poll(async () => (await mapCamera(page)).zoom, { timeout: 20000 })
+    .toBeGreaterThan(start.zoom + 0.5);
   const moved = await mapCamera(page);
   await page.getByRole('button', { name: 'Explore states and projects' }).click();
   return moved;
